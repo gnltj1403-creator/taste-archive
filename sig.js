@@ -6,7 +6,11 @@
       진행 막대가 차면(기본 5초) .85초에 한 칸 밀림. 화면 밖·마우스 위·초점·상세 열림이면 멈춤. 걸린 카드를 누르면 그 카드로
    4) 카드(이름·사진·More)를 누르면 상세: 바탕색으로 .35초에 덮이고 큰 문장 + 원본 비율 사진 + Prev/Next. Return·Esc로 닫힘
    5) 하단 고정 메뉴: 지금 보고 있는 장 칸에 굵은 선(현재 위치)
-   스크롤을 가로채지 않는다. */
+   6) 2026-10-20 2차 학생 요청 네 가지: ① 3장 공간 — 장소 이름을 눌러 고르면 그 장소 사진 강조·나머지 흐림(390은 고른 장소 사진만 펼침)
+      ② 상세 열기·닫기 — 목록 사진이 상세 사진 자리로 커졌다가 닫으면 원래 자리로 돌아옴(스크롤 위치 유지)
+      ③ 상단 메뉴 — 지금 장 글자 아래 짧은 밑줄이 칸 사이를 미끄러짐(메뉴 이동은 부드럽게)
+      ④ 첫 화면 — 대표 제목이 한 번 나타나고 `취향 둘러보기` 버튼이 1장으로 안내. 모든 움직임은 --my-motion 0 · 동작 줄이기에서 꺼진다
+   스크롤을 가로채지 않는다(메뉴·버튼을 눌렀을 때만 부드럽게 따라간다). */
 (function () {
   var D = document, R = D.documentElement;
   function $(s, c) { return (c || D).querySelector(s); }
@@ -24,6 +28,11 @@
   R.classList.add('js', 't-' + TYPE, 'm' + MOTION, 'd' + DENS, 'i-' + IMG);
   R.style.setProperty('--ca-auto', AUTO + 's');
   var REPORT = [];
+  /* ── 첫 화면 대표 제목 · 버튼: 한 번 부드럽게 나타남 (2026-10-20 2차 학생 요청) ──
+     글꼴·첫 화면 사진이 준비된 뒤 html 에 hero-in 이 붙으면 CSS 가 한 번 재생한다. 아래 타이머는 안전장치(1.6초 뒤엔 무조건 보인다) */
+  var heroInOn = false;
+  function heroIn() { if (heroInOn) return; heroInOn = true; R.classList.add('hero-in'); }
+  setTimeout(heroIn, 1600);
   /* ── 메뉴 언어 (my-style.css --my-menu-lang: ko | en · 7주 패치 2026-10-07) ──
      메뉴 다섯 칸의 말을 한글 세트(시선·사람·공간·물건·기준) ↔ 영문 세트(Gaze·People·Spaces·Objects·Criteria)로 바꾼다.
      줄이 없거나 값이 ko·en이 아니면 HTML 글자를 그대로 둔다. 영문이면 그 칸에 lang="en"(영문 자간·높이 값을 탄다) */
@@ -154,8 +163,8 @@
   var gName = gnb && $('.ca-gnb-name a', gnb);
   if (gName) gName.addEventListener('click', function (e) {   /* 이름 = 메인(첫 화면)으로 — 상세가 열려 있으면 닫고 맨 위로 (2026-10-07 교수 지시) */
     e.preventDefault();
-    if (detailOn) closeDetail();
     var wasOpen = detailOn;
+    if (detailOn) closeDetail(true);
     setTimeout(function () {   /* 상세를 닫은 직후의 포커스·위치 복귀가 끝난 뒤 맨 위로 */
       R.style.scrollBehavior = 'auto'; window.scrollTo(0, 0); R.style.scrollBehavior = '';
       if (history.replaceState) history.replaceState(null, '', location.pathname + location.search);
@@ -223,7 +232,26 @@
       var COL12 = { 4: 1, 5: 2, 6: 4, 7: 5, 8: 7, 9: 8 };   /* 원 9열의 4~9열(오른쪽 2/3) → 오른쪽 8단 안 열 */
       var field = D.createElement('div'); field.className = 'ca-field'; field.setAttribute('aria-label', '공간 사진');
       var k = 0, cellsAll = [];
-      function hot(i, on) { sec0.classList.toggle('is-linking', !!on); cards.forEach(function (c, j) { var h = on && i === j; c.classList.toggle('is-hot', h); (c._cells || []).forEach(function (x) { x.classList.toggle('is-hot', h); }); }); }
+      /* 강조 두 가지 — 호버·초점(잠깐 미리보기)과 장소 이름을 눌러 고른 선택(2026-10-20 2차 학생 요청).
+         선택이 있으면 선택이 우선: 고른 장소의 사진은 또렷하고 나머지는 흐리다(390은 고른 장소 사진만 모아 펼침). 같은 이름을 다시 누르거나 Esc 로 풀린다 */
+      var selIdx = -1, hotIdx = -1;
+      function paint() {
+        var idx = selIdx > -1 ? selIdx : hotIdx;
+        sec0.classList.toggle('is-linking', idx > -1); sec0.classList.toggle('has-sel', selIdx > -1);
+        cards.forEach(function (c, j) {
+          var h = idx === j, s = selIdx === j, nb = $('.ca-open', c);
+          c.classList.toggle('is-hot', h); c.classList.toggle('is-sel', s);
+          if (nb) nb.setAttribute('aria-pressed', s ? 'true' : 'false');
+          (c._cells || []).forEach(function (x) { x.classList.toggle('is-hot', h); x.classList.toggle('is-sel', s); });
+        });
+      }
+      function hot(i, on) { if (on) hotIdx = i; else if (hotIdx === i) hotIdx = -1; paint(); }
+      function select(i) {
+        var anchor = stacked() ? cards[i] : null, y0 = anchor ? anchor.getBoundingClientRect().top : 0;
+        sec0.classList.add('sel-ready'); selIdx = selIdx === i ? -1 : i; paint();
+        if (anchor) stillAt(anchor, y0);   /* 390: 다른 장소 사진이 접히고 펴져도 누른 이름은 화면에서 제자리 */
+      }
+      function clearSel() { if (selIdx > -1) { selIdx = -1; paint(); } }
       cards.forEach(function (c, i) {
         c.classList.add('is-on'); c._cells = [];
         var nm = txtOf(c, '.ca-name');
@@ -236,19 +264,22 @@
           b.setAttribute('aria-label', nm + ' 사진 ' + (j + 1) + ' — 자세히'); b.setAttribute('aria-haspopup', 'dialog');
           var ci = D.createElement('img'); ci.src = im.getAttribute('src'); ci.alt = ''; ci.decoding = 'async'; b.appendChild(ci);
           var lb = D.createElement('span'); lb.className = 'ca-cell-t'; lb.textContent = nm; lb.setAttribute('aria-hidden', 'true'); b.appendChild(lb);
-          b.addEventListener('click', function () { openDetail(cards, i); });
+          b.addEventListener('click', function () { openDetail(cards, i, null, $('img', b)); });   /* 사진 = 바로 상세(누른 그 사진이 상세 사진 자리로 커진다) */
           b.addEventListener('mouseenter', function () { hot(i, true); }); b.addEventListener('mouseleave', function () { hot(i, false); });
           b.addEventListener('focus', function () { hot(i, true); }); b.addEventListener('blur', function () { hot(i, false); });
           c._cells.push(b); cellsAll.push(b); field.appendChild(b);
         });
         c.addEventListener('mouseenter', function () { hot(i, true); }); c.addEventListener('mouseleave', function () { hot(i, false); });
-        c.addEventListener('click', function (e) { if (e.target.closest('.ca-place')) return; if (e.target.closest('.ca-cap, .ca-more')) openDetail(cards, i); });
-        /* 390 묶음 자리 — 장소명(.ca-name) 바로 아래, 감상(.ca-when) 바로 위. 1280에서는 비어 있어 보이지 않는다 */
+        /* 장소 이름·감상 = 그 장소 고르기, More·사진 = 상세. (이름이 곧바로 상세를 열던 2026-10-13 동작은 More 가 대신한다) */
+        c.addEventListener('click', function (e) { if (e.target.closest('.ca-place')) return; if (e.target.closest('.ca-more')) openDetail(cards, i); else if (e.target.closest('.ca-cap')) select(i); });
+        /* 390 묶음 자리 — 장소명(.ca-name) 바로 아래, 감상(.ca-when) 바로 위. 1280에서는 비어 있어 보이지 않는다.
+           바깥 .ca-place = 접고 펴는 칸(고른 장소만 펴짐), 안쪽 .ca-place-in = 사진 3열 */
         var capEl = $('.ca-cap', c);
         if (capEl && c._cells.length) {
           var box = D.createElement('div'); box.className = 'ca-place'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', nm + ' 사진');
+          var boxIn = D.createElement('div'); boxIn.className = 'ca-place-in'; box.appendChild(boxIn);
           var whenEl = $('.ca-when', capEl); capEl.insertBefore(box, whenEl && whenEl.parentNode === capEl ? whenEl : null);
-          c._place = box;
+          c._place = boxIn;
         }
       });
       if (cellsAll.length) track.parentNode.insertBefore(field, track.nextSibling);   /* 사진 0장이면 칸 밭 없음 — 목록만 */
@@ -256,11 +287,23 @@
          같은 칸 요소를 옮겨 둘 뿐이라 사진·클릭·상세는 그대로. 크기가 바뀌어 기준(768)을 넘을 때만 다시 옮긴다 */
       var placed = false;   /* 처음엔 모두 칸 밭에 있다 */
       function arrange() {
-        var m = stacked(); if (m === placed) return; placed = m;
-        if (m) cards.forEach(function (c) { if (c._place) c._cells.forEach(function (b) { c._place.appendChild(b); }); });
-        else cellsAll.forEach(function (b) { field.appendChild(b); });
+        var m = stacked();
+        if (m !== placed) {
+          placed = m;
+          if (m) cards.forEach(function (c) { if (c._place) c._cells.forEach(function (b) { c._place.appendChild(b); }); });
+          else cellsAll.forEach(function (b) { field.appendChild(b); });
+        }
+        fitLabels();
       }
-      tracks.push({ layout: arrange, measure: function () {}, arm: function () {} });
+      /* 호버 때 사진 아래에 뜨는 장소 이름이 오른쪽 화면 밖으로 나가지 않게: 넘치는 칸만 이름을 칸 오른쪽 끝에 맞춘다 */
+      function fitLabels() {
+        var vw = R.clientWidth;
+        cellsAll.forEach(function (b) {
+          b.classList.remove('is-edge'); var t = $('.ca-cell-t', b); if (!t || !t.offsetWidth) return;
+          if (b.getBoundingClientRect().left + t.offsetWidth > vw - 12) b.classList.add('is-edge');
+        });
+      }
+      tracks.push({ layout: arrange, measure: fitLabels, arm: function () {}, clear: clearSel });
       if (MOTION !== '0' && 'IntersectionObserver' in window && cellsAll.length) {
         sec0.classList.add('is-armed');
         var io2 = new IntersectionObserver(function (es) { es.forEach(function (e) { e.target.classList.toggle('is-in', e.isIntersecting); }); }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
@@ -375,9 +418,11 @@
     + '<button type="button" class="ca-d-edge ca-d-prev"><span>← <b></b></span></button><button type="button" class="ca-d-edge ca-d-next"><span><b></b> →</span></button>';
   D.body.appendChild(dl);
   var dCards = [], dAt = 0, dDone = null, back = null;
+  var openThumb = null, openIdx = -1, navigated = false, savedY = 0;   /* 열 때의 사진·카드·스크롤 위치 — 닫을 때 그 자리로 돌려보낸다 */
   function txt(c, s) { var e = $(s, c); return e ? e.textContent.trim() : ''; }
   function fill(i) {
     var N = dCards.length; dAt = (i + N) % N; var c = dCards[dAt];
+    if (detailOn) navigated = true;   /* 상세 안에서 이전·다음으로 다른 카드로 옮겼다 */
     $('.ca-d-n', dl).textContent = '[' + pad(dAt + 1) + ']';
     $('.ca-d-t', dl).textContent = txt(c, '.ca-name');
     var dw = $('.ca-d-when', dl); dw.textContent = txt(c, '.ca-when'); dw.hidden = !dw.textContent;
@@ -400,18 +445,93 @@
     pv.setAttribute('aria-label', '이전 항목: ' + pn); nx.setAttribute('aria-label', '다음 항목: ' + nn);
     dl.scrollTop = 0;
   }
-  function openDetail(cards, i, done) {
-    dCards = cards; dDone = done || null; back = D.activeElement; fill(i); detailOn = true; tracks.forEach(function (t) { t.arm(); });
+  /* ── 6-1. 상세 열기·닫기 = 사진이 커졌다가 원래 자리로 돌아온다 (2026-10-20 2차 학생 요청) ──
+     열 때: 누른 목록 사진을 복제해 상세 첫 사진 자리까지 늘려 보낸다(가로·세로·위치를 함께 — 4:5 칸에서 원본 비율로 자연스럽게 풀림).
+     닫을 때: 상세 첫 사진이 그 목록 사진 자리로 줄어들어 돌아가고, 스크롤은 열기 전 그대로(다른 카드로 넘겼다면 그 사진이 화면에 오게).
+     움직임 0 · 시스템의 동작 줄이기 설정이면 복제 사진 없이 기존처럼 바로 열리고 닫힌다. 장 메뉴·이름으로 닫을 때(quick)도 바로 닫힌다 */
+  var flyEl = null, flyAnim = null, flyThumb = null, holdRaf = 0;
+  var E2 = my('--ca-e2', 'cubic-bezier(.45,.22,0,.95)');
+  function calm() { return MOTION === '0' || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  function seen(r) { return !!r && r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; }
+  function thumbOf(card) {   /* 그 카드의 목록 사진 — 3장은 사진 칸, 390 가로 넘김 줄은 지금 보이는 사진 */
+    var list = card._cells && card._cells.length ? card._cells.map(function (b) { return $('img', b); }) : $$('.ca-fig img', card), first = null;
+    for (var q = 0; q < list.length; q++) {
+      var r = list[q].getBoundingClientRect(); if (r.width < 4 || r.height < 4) continue;
+      if (!first) first = list[q];
+      if (r.left >= -1 && r.right <= innerWidth + 1) return list[q];
+    }
+    return first;
+  }
+  function detailFirst() {   /* 상세 첫 사진 자리(아직 안 그려졌으면 칸 폭과 사진 비율로 계산) */
+    var im = $('.ca-d-grid figure.is-first img', dl); if (!im) return null;
+    var r = im.getBoundingClientRect(); if (r.width > 4 && r.height > 4) return r;
+    var fg = im.parentNode.getBoundingClientRect(), w = +im.getAttribute('width') || 0, h = +im.getAttribute('height') || 0; if (!w || !h || fg.width < 4) return null;
+    var dh = Math.min(fg.width * h / w, innerHeight * .6);
+    return { left: fg.left, top: fg.top, width: dh * w / h, height: dh, right: fg.left + dh * w / h, bottom: fg.top + dh };
+  }
+  function endFly() {
+    if (flyAnim) { try { flyAnim.cancel(); } catch (e) {} flyAnim = null; }
+    if (flyEl && flyEl.parentNode) flyEl.parentNode.removeChild(flyEl); flyEl = null;
+    dl.classList.remove('is-fly');
+    if (flyThumb) { flyThumb.style.removeProperty('visibility'); flyThumb = null; }
+  }
+  function flyImg(src, a, b, ms) {   /* a 자리에서 b 자리로 사진 한 장을 보낸다. 끝나면 endFly */
+    var el = D.createElement('div'), im = D.createElement('img');
+    el.className = 'ca-fly'; el.setAttribute('aria-hidden', 'true'); im.src = src; im.alt = ''; el.appendChild(im);
+    function box(r) { return { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' }; }
+    var s = box(a); el.style.left = s.left; el.style.top = s.top; el.style.width = s.width; el.style.height = s.height;
+    D.body.appendChild(el); flyEl = el;
+    if (!el.animate) { endFly(); return; }
+    var an = el.animate([s, box(b)], { duration: ms, easing: E2, fill: 'forwards' }); flyAnim = an;
+    an.onfinish = function () { if (flyAnim === an) { flyAnim = null; endFly(); } };
+    setTimeout(function () { if (flyAnim === an) { flyAnim = null; endFly(); } }, ms + 400);   /* 안전장치: 탭이 가려져 애니메이션이 멈춰도 사진·글은 반드시 돌아온다 */
+  }
+  function stillAt(el, y0) {   /* 390: 다른 장소 사진이 접히고 펴지는 동안 누른 카드가 화면에서 제자리에 있게 — 스크롤을 프레임마다 보정 */
+    var t0 = performance.now(), stop = false;
+    function off() { stop = true; }
+    addEventListener('wheel', off, { passive: true }); addEventListener('touchstart', off, { passive: true });
+    cancelAnimationFrame(holdRaf);
+    (function step() {
+      var d = el.getBoundingClientRect().top - y0;
+      if (!stop && Math.abs(d) > .5) { R.style.scrollBehavior = 'auto'; scrollTo(0, scrollY + d); R.style.scrollBehavior = ''; }
+      if (!stop && performance.now() - t0 < 520) holdRaf = requestAnimationFrame(step);
+      else { removeEventListener('wheel', off); removeEventListener('touchstart', off); }
+    })();
+  }
+  function openDetail(cards, i, done, origin) {
+    endFly();
+    var first = !detailOn, th = first ? (origin || thumbOf(cards[i])) : null, from = th ? th.getBoundingClientRect() : null, src = th ? (th.currentSrc || th.src) : '';
+    dCards = cards; dDone = done || null; back = D.activeElement;
+    if (first) { savedY = scrollY; openThumb = th; openIdx = i; }
+    fill(i); if (first) navigated = false;
+    detailOn = true; tracks.forEach(function (t) { t.arm(); });
     dl.classList.add('is-on'); R.classList.add('ca-lock');
+    var to = first && seen(from) && !calm() ? detailFirst() : null;
+    if (to && to.width > 4) { dl.classList.add('is-fly'); th.style.visibility = 'hidden'; flyThumb = th; flyImg(src, from, to, 460); }   /* 목록 사진 → 상세 첫 사진 자리 */
     setTimeout(function () { dl.focus({ preventScroll: true }); }, 30);
     if (history.pushState && !(history.state && history.state.caDetail)) history.pushState({ caDetail: 1 }, '');
   }
-  function closeDetail() {
+  function backTo(th) {   /* 닫은 뒤 스크롤: 열 때 그 카드면 열 때 위치 그대로, 다른 카드로 넘겼으면 그 사진이 화면 가운데 오게 */
+    R.style.scrollBehavior = 'auto';
+    if (!navigated && dAt === openIdx) { if (Math.abs(scrollY - savedY) > 1) scrollTo(0, savedY); }
+    else if (th) {
+      var r = th.getBoundingClientRect(), top = (gnb ? gnb.getBoundingClientRect().height : 0) + 12, bot = innerHeight - (menuEl ? menuEl.getBoundingClientRect().height : 0) - 12;
+      if (r.top < top || r.bottom > bot) scrollBy(0, r.top + r.height / 2 - innerHeight / 2);
+    }
+    R.style.scrollBehavior = '';
+  }
+  function closeDetail(quick) {
     if (!detailOn) return;
+    endFly();
+    var card = dCards[dAt], th = (!navigated && dAt === openIdx && openThumb && openThumb.isConnected) ? openThumb : thumbOf(card);
+    var fi = $('.ca-d-grid figure.is-first img', dl), from = fi ? fi.getBoundingClientRect() : null;
+    var fly = quick !== true && !calm() && seen(from) && from.bottom > (gnb ? gnb.getBoundingClientRect().height : 0) + 8;
     dl.classList.remove('is-on'); R.classList.remove('ca-lock'); detailOn = false;
     if (dDone) dDone(dAt);
-    var t = $('.ca-open', dCards[dAt]) || back; if (t && t.focus) t.focus({ preventScroll: true });
-    if (stacked()) dCards[dAt].scrollIntoView({ block: 'nearest' });
+    backTo(th);
+    var to = fly && th ? th.getBoundingClientRect() : null;
+    if (to && seen(to)) { dl.classList.add('is-fly'); th.style.visibility = 'hidden'; flyThumb = th; flyImg(fi.currentSrc || fi.src, from, to, 380); }   /* 상세 첫 사진 → 원래 목록 사진 자리 */
+    var t = $('.ca-open', card) || back; if (t && t.focus) t.focus({ preventScroll: true });
     tracks.forEach(function (t) { t.arm(); });
   }
   addEventListener('popstate', function () { if (detailOn) closeDetail(); });   /* 브라우저 뒤로가기 = 상세 닫기 */
@@ -426,7 +546,7 @@
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) fill(dAt + (dx < 0 ? 1 : -1));
   }, { passive: true });
   D.addEventListener('keydown', function (e) {
-    if (!detailOn) return;
+    if (!detailOn) { if (e.key === 'Escape') tracks.forEach(function (t) { if (t.clear) t.clear(); }); return; }   /* 상세가 닫혀 있을 때 Esc = 3장에서 고른 장소 풀기 */
     if (e.key === 'Escape') { e.preventDefault(); closeDetail(); }
     else if (e.key === 'ArrowRight' && dCards.length > 1) fill(dAt + 1);
     else if (e.key === 'ArrowLeft' && dCards.length > 1) fill(dAt - 1);
@@ -440,14 +560,56 @@
   /* ── 7. 하단 메뉴: 현재 위치 ── */
   var links = $$('.ca-menu a'), secs = links.map(function (a) { var id = (a.getAttribute('href') || '').slice(1); return id ? D.getElementById(id) : null; });
   links.forEach(function (a, i) { if (!secs[i]) REPORT.push('메뉴 연결 없음: ' + a.textContent.trim()); a.innerHTML = '<span>' + a.innerHTML + '</span>'; });
-  links.forEach(function (a) { a.addEventListener('click', function () { if (detailOn) closeDetail(); }); });   /* 장 메뉴 = 상세 닫고 그 장으로 */
+  /* 상단 메뉴 현재 장 표시 (2026-10-20 2차 학생 요청): 지금 장 글자 아래에 짧은 밑줄 하나가 있고, 장이 바뀌면 그 밑줄이 칸 사이를 미끄러진다.
+     스크롤로 장이 바뀔 때도, 메뉴를 눌러 옮길 때도 같다(메뉴를 누르면 밑줄이 곧바로 목적지로 가고 화면은 부드럽게 따라간다) */
+  var mnav = $('.ca-gnb .ca-menu'), mark = null, curIdx = -1;
+  if (mnav) { mark = D.createElement('i'); mark.className = 'ca-menu-mark'; mark.setAttribute('aria-hidden', 'true'); mnav.appendChild(mark); }
+  function placeMark() {
+    if (!mark) return;
+    var a = links[curIdx], sp = a && $('span', a);
+    if (!a || !a.offsetParent || !sp) { mark.classList.remove('is-on'); return; }
+    var mr = mnav.getBoundingClientRect(), ar = a.getBoundingClientRect(), sr = sp.getBoundingClientRect(), first = !mark.classList.contains('is-set');
+    if (first) mark.style.transition = 'none';   /* 처음 자리는 미끄러져 오지 않고 그 자리에 나타난다 */
+    mark.style.transform = 'translate3d(' + (ar.left - mr.left) + 'px,' + (sr.bottom - mr.top + 3) + 'px,0)';
+    mark.classList.add('is-on');
+    if (first) { void mark.offsetWidth; mark.style.removeProperty('transition'); mark.classList.add('is-set'); }
+  }
+  var navLock = -1, navT = 0;   /* 메뉴를 눌러 부드럽게 가는 동안은 지나치는 장마다 밑줄이 깜박이지 않게 목적지에 고정 */
+  function navFree() { navLock = -1; clearTimeout(navT); current(); }
+  function navHold(i, ms) { navLock = i; clearTimeout(navT); navT = setTimeout(navFree, ms); }
   function current() {
     var y = innerHeight * .4, on = -1;
     secs.forEach(function (s, i) { if (s && s.getBoundingClientRect().top <= y) on = i; });
     if (innerHeight + scrollY >= D.documentElement.scrollHeight - 4) { for (var k = secs.length - 1; k >= 0; k--) if (secs[k]) { on = k; break; } }   /* 맨 끝 = 마지막 장 */
+    if (navLock > -1) on = navLock;
     links.forEach(function (a, i) { a.classList.toggle('is-on', i === on); a.setAttribute('aria-current', i === on ? 'true' : 'false'); });
+    if (on !== curIdx) { curIdx = on; placeMark(); }
   }
-  var tick = false; addEventListener('scroll', function () { if (!tick) { tick = true; requestAnimationFrame(function () { tick = false; current(); }); } }, { passive: true });
+  var tick = false; addEventListener('scroll', function () {
+    if (navLock > -1) { clearTimeout(navT); navT = setTimeout(navFree, 160); }   /* 화면이 멈추면 고정을 푼다 */
+    if (!tick) { tick = true; requestAnimationFrame(function () { tick = false; current(); }); }
+  }, { passive: true });
+  ['wheel', 'touchstart', 'keydown'].forEach(function (ev) { addEventListener(ev, function () { if (navLock > -1) navFree(); }, { passive: true }); });
+  /* 장 이동(메뉴 · 첫 화면 `취향 둘러보기` 버튼): 상세가 열려 있으면 닫고, 그 장 머리로 부드럽게 스크롤(동작 줄이기면 바로) */
+  function goTo(s, i) {
+    if (detailOn) closeDetail(true);
+    if (i > -1) { navHold(i, 400); current(); }
+    s.scrollIntoView({ behavior: calm() ? 'auto' : 'smooth', block: 'start' });
+    if (history.replaceState && s.id) history.replaceState(null, '', '#' + s.id);
+    if (s.tagName !== 'A' && s.tagName !== 'BUTTON') { s.setAttribute('tabindex', '-1'); s.focus({ preventScroll: true }); }   /* 다음 Tab 이 그 장 안에서 시작 */
+  }
+  links.forEach(function (a, i) {
+    a.addEventListener('click', function (e) {   /* 장 메뉴 = 상세 닫고 그 장으로 */
+      if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (!secs[i]) { if (detailOn) closeDetail(true); return; }
+      e.preventDefault(); goTo(secs[i], i);
+    });
+  });
+  var heroGo = $('.ca-hero-go');
+  if (heroGo) heroGo.addEventListener('click', function (e) {
+    var s = D.getElementById((heroGo.getAttribute('href') || '').slice(1)); if (!s || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault(); goTo(s, secs.indexOf(s));
+  });
 
   /* ── 8. 스크롤 등장 (움직임 1·2) ── */
   if (MOTION !== '0' && 'IntersectionObserver' in window) {
@@ -495,7 +657,7 @@
   function menuH() { if (menuEl) R.style.setProperty('--ca-menu-h', Math.ceil(menuEl.getBoundingClientRect().height) + 'px'); }
 
   /* ── 9. 시작 · 크기 변화 ── */
-  function relayout() { fitH1(); tracks.forEach(function (t) { t.layout(); }); current(); menuH(); gnbH(); syncBase(); heroText(); if (gnb && !matchMedia('(max-width: 768px)').matches) gnbOpen(false); gnbState(); }
+  function relayout() { fitH1(); tracks.forEach(function (t) { t.layout(); }); current(); placeMark(); menuH(); gnbH(); syncBase(); heroText(); if (gnb && !matchMedia('(max-width: 768px)').matches) gnbOpen(false); gnbState(); }
   /* 카드 서브카피 2~5줄(상한 5줄) — 자르지 않고 보고 줄만(COMMON_RULES §2) */
   function subLimit() {
     $$('.ca-card').forEach(function (c) {
@@ -510,7 +672,15 @@
   function flush() { subLimit(); if (REPORT.length) R.setAttribute('data-ca-report', REPORT.join(' / ')); }
   relayout(); flush();
   requestAnimationFrame(function () { requestAnimationFrame(function () { R.classList.add('is-ready'); }); });
-  if (D.fonts && D.fonts.ready) D.fonts.ready.then(function () { fitH1(); tracks.forEach(function (t) { t.measure(); }); menuH(); gnbH(); syncBase(); heroText(); gnbState(); });
+  if (D.fonts && D.fonts.ready) D.fonts.ready.then(function () { fitH1(); tracks.forEach(function (t) { t.measure(); }); placeMark(); menuH(); gnbH(); syncBase(); heroText(); gnbState(); });
+  /* 첫 화면 제목: 글꼴과 첫 화면 사진이 준비되면 한 번 나타난다(준비가 늦어도 위 안전장치가 1.6초에 켠다). 끝난 뒤 글자색을 한 번 더 잰다 */
+  (function () {
+    var need = 2, h1 = $('.ca-top--hero .ca-h1');
+    function one() { if (--need === 0) heroIn(); }
+    if (!hImg || hImg.complete) one(); else { hImg.addEventListener('load', one); hImg.addEventListener('error', one); }
+    requestAnimationFrame(function () { requestAnimationFrame(function () { (D.fonts && D.fonts.ready ? D.fonts.ready : Promise.resolve()).then(one); }); });
+    if (h1) h1.addEventListener('animationend', function () { heroText(); gnbState(); });
+  })();
   $$('img').forEach(function (im) { if (!im.complete) im.addEventListener('load', function () { tracks.forEach(function (t) { t.measure(); }); }); });
   var rt; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(relayout, 120); });
   if (mq.addEventListener) mq.addEventListener('change', relayout);
