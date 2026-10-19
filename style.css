@@ -504,3 +504,8 @@ main > section:last-child:not(:has(.ca-rows)) { padding-bottom: var(--ca-s2); }
   .ca-scatter.is-linking .ca-track[data-scatter] .ca-card:not(.is-hot), .ca-scatter.is-linking .ca-cell { opacity: 1; }   /* 묶음이 관계를 보이므로 390은 호버 흐림 없음 */
   .ca-scatter.is-linking .ca-cell.is-hot { transform: none; }
 }
+
+/* ── 2026-10-20 학생 요청: 첫 화면 대표 제목 뒤의 흰 판 삭제.
+      판이 없어지면 검은 글자가 사진 위에서 안 읽히므로, 글자를 흰색 + 옅은 그림자로 둔다(판 대신 읽힘을 받치는 장치). ── */
+.ca-hero-t .ca-h1.is-plate .ca-h1-in { background: none; padding: 0; margin-left: 0; }
+.ca-hero-t .ca-h1.is-plate { color: var(--ca-paper); text-shadow: 0 1px 14px rgba(0,0,0,.55), 0 0 2px rgba(0,0,0,.4); }
