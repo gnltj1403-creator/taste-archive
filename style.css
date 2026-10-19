@@ -561,3 +561,8 @@ section[tabindex="-1"]:focus { outline: none; }   /* 메뉴·버튼으로 장에
 .ca-hero-go::after { content: "↓"; content: "↓" / ""; transition: transform var(--ca-t-nudge) var(--ca-e2); }
 @media (hover: hover) { .ca-hero-go:hover { background: var(--ca-paper); color: var(--ca-ink); text-shadow: none; } .ca-hero-go:hover::after { transform: translateY(4px); } }
 .ca-hero-go:focus-visible { outline: 2px solid var(--ca-paper); outline-offset: 3px; background: var(--ca-paper); color: var(--ca-ink); text-shadow: none; }
+
+/* ── 2026-10-20 학생 요청: 첫 화면 대표 제목을 왼쪽 위로 올린다.
+      제목이 상단 고정 바(--ca-gnb-h) 바로 아래에서 시작하고, 버튼(`취향 둘러보기`)은 제목 아래에 이어 붙는다. 글자색은 sig.js 가 그 자리의 사진 명도를 보고 다시 고른다. ── */
+.ca-hero-t { padding-top: calc(var(--ca-gnb-h, 64px) + var(--ca-s1)); }
+.ca-hero-t .ca-h1 { margin-top: 0; }
