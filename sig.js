@@ -228,10 +228,11 @@
         c.classList.add('is-on'); c._cells = [];
         var nm = txtOf(c, '.ca-name');
         $$('.ca-fig img', c).forEach(function (im, j) {
-          var q = k % 12, rep = Math.floor(k / 12); k++;
+          var q = k % 12; k++;
           var b = D.createElement('button'); b.type = 'button'; b.className = 'ca-cell';
           b.style.setProperty('--dcs', COL12[DPAT[q]]); b.style.setProperty('--dc', DPAT[q]);
-          b.style.setProperty('--mcs', MPAT[q][0]); b.style.setProperty('--mrs', MPAT[q][1] + rep * 8);
+          /* 390: 공간마다 따로 묶으므로 흩어 놓는 무늬(원 390 무늬)도 공간 안에서 처음부터 다시 시작한다 (2026-10-20 학생 요청) */
+          b.style.setProperty('--mcs', MPAT[j % 12][0]); b.style.setProperty('--mrs', MPAT[j % 12][1]);
           b.setAttribute('aria-label', nm + ' 사진 ' + (j + 1) + ' — 자세히'); b.setAttribute('aria-haspopup', 'dialog');
           var ci = D.createElement('img'); ci.src = im.getAttribute('src'); ci.alt = ''; ci.decoding = 'async'; b.appendChild(ci);
           var lb = D.createElement('span'); lb.className = 'ca-cell-t'; lb.textContent = nm; lb.setAttribute('aria-hidden', 'true'); b.appendChild(lb);
@@ -241,11 +242,25 @@
           c._cells.push(b); cellsAll.push(b); field.appendChild(b);
         });
         c.addEventListener('mouseenter', function () { hot(i, true); }); c.addEventListener('mouseleave', function () { hot(i, false); });
-        c.addEventListener('click', function (e) { if (e.target.closest('.ca-cap, .ca-more')) openDetail(cards, i); });
+        c.addEventListener('click', function (e) { if (e.target.closest('.ca-place')) return; if (e.target.closest('.ca-cap, .ca-more')) openDetail(cards, i); });
+        /* 390 묶음 자리 — 장소명(.ca-name) 바로 아래, 감상(.ca-when) 바로 위. 1280에서는 비어 있어 보이지 않는다 */
+        var capEl = $('.ca-cap', c);
+        if (capEl && c._cells.length) {
+          var box = D.createElement('div'); box.className = 'ca-place'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', nm + ' 사진');
+          var whenEl = $('.ca-when', capEl); capEl.insertBefore(box, whenEl && whenEl.parentNode === capEl ? whenEl : null);
+          c._place = box;
+        }
       });
-      var minR = Math.min.apply(null, cellsAll.map(function (x) { return +x.style.getPropertyValue('--mrs'); }));
-      if (cellsAll.length && minR > 1) cellsAll.forEach(function (x) { x.style.setProperty('--mrs', +x.style.getPropertyValue('--mrs') - minR + 1); });
       if (cellsAll.length) track.parentNode.insertBefore(field, track.nextSibling);   /* 사진 0장이면 칸 밭 없음 — 목록만 */
+      /* 사진 칸 자리 (2026-10-20 학생 요청): 1280 = 오른쪽 흩뿌린 칸 밭(.ca-field) 그대로, 390 = 공간마다 장소명 → 해당 사진 → 감상 순서로 카드 안에 묶음.
+         같은 칸 요소를 옮겨 둘 뿐이라 사진·클릭·상세는 그대로. 크기가 바뀌어 기준(768)을 넘을 때만 다시 옮긴다 */
+      var placed = false;   /* 처음엔 모두 칸 밭에 있다 */
+      function arrange() {
+        var m = stacked(); if (m === placed) return; placed = m;
+        if (m) cards.forEach(function (c) { if (c._place) c._cells.forEach(function (b) { c._place.appendChild(b); }); });
+        else cellsAll.forEach(function (b) { field.appendChild(b); });
+      }
+      tracks.push({ layout: arrange, measure: function () {}, arm: function () {} });
       if (MOTION !== '0' && 'IntersectionObserver' in window && cellsAll.length) {
         sec0.classList.add('is-armed');
         var io2 = new IntersectionObserver(function (es) { es.forEach(function (e) { e.target.classList.toggle('is-in', e.isIntersecting); }); }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
@@ -351,7 +366,8 @@
   var dl = D.createElement('div');
   dl.className = 'ca-detail'; dl.setAttribute('role', 'dialog'); dl.setAttribute('aria-modal', 'true'); dl.setAttribute('aria-labelledby', 'ca-d-t'); dl.tabIndex = -1;
   /* 상세 순서 = 사진(원본 비율) → [번호 이름] → 본 것·언제 → 해석·고른 이유(본문보다 한 단계 큰 글) → Prev/Next. Return 없음 — 닫기: Esc · 상단 바 제목 · 장 메뉴 · 뒤로가기 (2026-10-07) */
-  dl.innerHTML = '<div class="ca-d-in"><div class="ca-d-grid ca-row"></div><div class="ca-d-txt"><div class="ca-d-head"><p class="ca-d-name"><span class="ca-n ca-d-n"></span><span class="ca-d-t" id="ca-d-t"></span></p>'
+  dl.innerHTML = '<div class="ca-d-bar"><button type="button" class="ca-d-close">닫기 <span aria-hidden="true">×</span></button></div>'   /* 2026-10-20 학생 요청: 상세 맨 위에 늘 보이는 닫기 버튼 (Esc · 뒤로가기도 그대로) */
+    + '<div class="ca-d-in"><div class="ca-d-grid ca-row"></div><div class="ca-d-txt"><div class="ca-d-head"><p class="ca-d-name"><span class="ca-n ca-d-n"></span><span class="ca-d-t" id="ca-d-t"></span></p>'
     + '<p class="ca-d-when"></p></div>'
     + '<p class="ca-d-why"></p></div>'
     + '</div>'
@@ -399,6 +415,7 @@
     tracks.forEach(function (t) { t.arm(); });
   }
   addEventListener('popstate', function () { if (detailOn) closeDetail(); });   /* 브라우저 뒤로가기 = 상세 닫기 */
+  $('.ca-d-close', dl).addEventListener('click', function () { closeDetail(); });
   $('.ca-d-prev', dl).addEventListener('click', function () { fill(dAt - 1); });
   $('.ca-d-next', dl).addEventListener('click', function () { fill(dAt + 1); });
   /* 터치: 좌우 스와이프(가로 이동 50px 이상 · 세로보다 클 때만 — 세로 스크롤은 가로채지 않음) */

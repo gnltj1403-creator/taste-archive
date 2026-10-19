@@ -487,3 +487,20 @@ main > section:last-child:not(:has(.ca-rows)) { padding-bottom: var(--ca-s2); }
 @media (min-width: 769px) {
   .ca-grid:has(.ca-fig) > .ca-card:not(:has(.ca-fig)) .ca-cap { margin-top: var(--ca-c1); }
 }
+
+/* ── 7주 내 사이트 (2026-10-20 학생 요청 ①): 상세 화면 맨 위 닫기 버튼 ──
+   상단 바 바로 아래에 붙어 상세를 스크롤해도 늘 보인다. Esc · 상단 바 제목 · 장 메뉴 · 브라우저 뒤로가기도 그대로 닫는다 */
+.ca-d-bar { position: sticky; top: 0; z-index: 3; display: flex; justify-content: flex-end; padding: 0 var(--ca-gut); background: var(--ca-paper); }
+.ca-d-close { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0; font: var(--ca-w-head) var(--ca-label)/1.3 var(--ca-f-head); letter-spacing: var(--ca-bar-ls); }
+.ca-d-close span { transition: transform var(--ca-t-nudge) var(--ca-e2); }
+@media (hover: hover) { .ca-d-close:hover span { transform: rotate(90deg); } }
+
+/* ── 7주 내 사이트 (2026-10-20 학생 요청 ②): 3장 공간 — 390에서만 장소명 → 해당 사진 → 감상(서브카피 · More) 순서로 묶기 ──
+   sig.js 가 390 이하에서 그 공간의 사진 칸(.ca-cell)을 카드 안 .ca-place 로 옮기고, 1280에서는 다시 오른쪽 흩뿌린 칸 밭(.ca-field)으로 돌려놓는다. 1280 배치는 바뀌지 않는다 */
+.ca-place:empty, .ca-field:empty { display: none; }
+@media (max-width: 768px) {
+  .ca-place { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ca-gap); margin-top: var(--ca-c2); }   /* 장소명 —(좁게)— 사진 */
+  .ca-place:not(:empty) + .ca-when { margin-top: var(--ca-c1); }   /* 사진 —(넓게)— 감상 */
+  .ca-scatter.is-linking .ca-track[data-scatter] .ca-card:not(.is-hot), .ca-scatter.is-linking .ca-cell { opacity: 1; }   /* 묶음이 관계를 보이므로 390은 호버 흐림 없음 */
+  .ca-scatter.is-linking .ca-cell.is-hot { transform: none; }
+}
