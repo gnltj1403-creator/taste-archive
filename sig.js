@@ -10,6 +10,8 @@
       ② 상세 열기·닫기 — 목록 사진이 상세 사진 자리로 커졌다가 닫으면 원래 자리로 돌아옴(스크롤 위치 유지)
       ③ 상단 메뉴 — 지금 장 글자 아래 짧은 밑줄이 칸 사이를 미끄러짐(메뉴 이동은 부드럽게)
       ④ 첫 화면 — 대표 제목이 한 번 나타나고 `취향 둘러보기` 버튼이 1장으로 안내. 모든 움직임은 --my-motion 0 · 동작 줄이기에서 꺼진다
+   7) 2026-10-20 3차 학생 요청: 첫 화면 인트로 연출 — 맨 아래 블록. 어두운 막 위에서 assets/intro/i01~i10.jpg 가 겹치며 넘어간 뒤 첫 화면 사진이 자리를 잡고,
+      상단 바가 위에서 내려오고, 이어서 대표 제목이 나타난다. 첫 방문(sessionStorage)만 · 건너뛰기(클릭·키·스크롤·휠·Skip) · --my-motion 0 / 동작 줄이기에서는 건너뜀 · 3.2초 안전장치
    스크롤을 가로채지 않는다(메뉴·버튼을 눌렀을 때만 부드럽게 따라간다). */
 (function () {
   var D = document, R = D.documentElement;
@@ -30,8 +32,8 @@
   var REPORT = [];
   /* ── 첫 화면 대표 제목 · 버튼: 한 번 부드럽게 나타남 (2026-10-20 2차 학생 요청) ──
      글꼴·첫 화면 사진이 준비된 뒤 html 에 hero-in 이 붙으면 CSS 가 한 번 재생한다. 아래 타이머는 안전장치(1.6초 뒤엔 무조건 보인다) */
-  var heroInOn = false;
-  function heroIn() { if (heroInOn) return; heroInOn = true; R.classList.add('hero-in'); }
+  var heroInOn = false, heroHold = false;   /* heroHold = 첫 화면 인트로(맨 아래 블록)가 도는 동안 제목을 붙잡아 둔다 — 인트로가 정한 때에 풀린다 */
+  function heroIn() { if (heroInOn || heroHold) return; heroInOn = true; R.classList.add('hero-in'); }
   setTimeout(heroIn, 1600);
   /* ── 메뉴 언어 (my-style.css --my-menu-lang: ko | en · 7주 패치 2026-10-07) ──
      메뉴 다섯 칸의 말을 한글 세트(시선·사람·공간·물건·기준) ↔ 영문 세트(Gaze·People·Spaces·Objects·Criteria)로 바꾼다.
@@ -100,7 +102,7 @@
   if (hH1 && !$('.ca-h1-in', hH1)) { var hin = D.createElement('span'); hin.className = 'ca-h1-in'; while (hH1.firstChild) hin.appendChild(hH1.firstChild); hH1.appendChild(hin); }
   var hCv = D.createElement('canvas'), hCx = hCv.getContext('2d', { willReadFrequently: true });
   function heroPix(rects) {
-    var ir = hImg.getBoundingClientRect(), nw = hImg.naturalWidth, nh = hImg.naturalHeight; if (!nw || !nh) return null;
+    var ir = (hImg.parentNode && hImg.parentNode.classList.contains('ca-hero--full') ? hImg.parentNode : hImg).getBoundingClientRect(), nw = hImg.naturalWidth, nh = hImg.naturalHeight; if (!nw || !nh) return null;   /* 사진을 담은 칸 기준 — 인트로에서 사진이 확대되어 자리를 잡는 동안에도 같은 값 */
     var sc = Math.max(ir.width / nw, ir.height / nh), ox = (ir.width - nw * sc) / 2, oy = (ir.height - nh * sc) / 2, px = [];
     for (var k = 0; k < rects.length; k++) {
       var r = rects[k]; if (r.width < 1 || r.height < 1) continue;
@@ -151,9 +153,9 @@
     if (!gnb) return;
     var on = false;
     if (hImg && hTop && !gnb.classList.contains('is-open') && !detailOn) {
-      var hb = hTop.getBoundingClientRect().bottom, gr = gnb.getBoundingClientRect();
-      if (hb >= gr.bottom) {
-        var cells = $$('.ca-gnb-name, .ca-menu a', gnb).filter(function (k) { return k.offsetParent; }).map(function (k) { return k.getBoundingClientRect(); });
+      var hb = hTop.getBoundingClientRect().bottom, gr = gnb.getBoundingClientRect(), dy = gr.top;   /* dy = 바가 위에서 내려오는 동안(인트로)의 어긋남 — 제 자리 기준으로 잰다. 평소 0 */
+      if (hb >= gr.bottom - dy) {
+        var cells = $$('.ca-gnb-name, .ca-menu a', gnb).filter(function (k) { return k.offsetParent; }).map(function (k) { var r = k.getBoundingClientRect(); return dy ? { left: r.left, right: r.right, top: r.top - dy, bottom: r.bottom - dy, width: r.width, height: r.height } : r; });
         var c = hImg.complete ? heroPick(gnb, cells, false) : null;
         if (c) { on = true; gnb.style.setProperty('--ca-gnb-c', css(c)); }
       }
@@ -683,6 +685,124 @@
     if (!hImg || hImg.complete) one(); else { hImg.addEventListener('load', one); hImg.addEventListener('error', one); }
     requestAnimationFrame(function () { requestAnimationFrame(function () { (D.fonts && D.fonts.ready ? D.fonts.ready : Promise.resolve()).then(one); }); });
     if (h1) h1.addEventListener('animationend', function () { heroText(); gnbState(); });
+  })();
+  /* ── 첫 화면 인트로 연출 (2026-10-20 3차 학생 요청) ──
+     첫 방문 때만: 어두운 막 위에서 assets/intro/i01~i10.jpg 가 장 순서대로 0.22초 간격으로 겹치며 넘어간다(앞 사진 위로 다음 사진이 서서히 덮임 — 끊는 컷·번쩍임 없음).
+     끝에서 막이 걷히며 첫 화면 사진이 자리를 잡고(조금 확대된 데서 제 크기로) → 상단 바가 위에서 내려오고 → 대표 제목이 한 번 나타난다(기존 hero-in 이 이때 시작).
+     건너뛰기: 클릭·터치·Enter/Space/Esc(·방향·Page·Home/End 키)·스크롤·휠, 오른쪽 아래 Skip. 건너뛰면 바와 제목이 바로 제 모습으로 선다.
+     안 도는 경우: --my-motion 0 · 동작 줄이기 · 이미 본 탭(sessionStorage) · 주소에 #장 이름 · 숨은 탭. sessionStorage 를 못 쓰면 그냥 매번 보인다.
+     안전: 3.2초 안에는 막이 걷힌다. 사진 일부가 안 오면 그 장만 빠지고(3장 미만이면 인트로 없이 바로 첫 화면), 코드가 도중에 실패해도 막이 남지 않는다.
+     도는 동안 아래 페이지는 스크롤 잠금 · inert(키보드가 못 들어감), 막은 aria-hidden, Skip 은 막 밖에 있어 Tab 으로 닿는다. JS 가 안 돌면 막은 만들어지지 않는다. */
+  (function () {
+    var KEY = 'ca-intro-seen', N = 10, STEP = 220, CAP = 3200, LOAD_MAX = 700;
+    function seen() { try { return !!sessionStorage.getItem(KEY); } catch (e) { return false; } }
+    function stamp() { try { sessionStorage.setItem(KEY, '1'); } catch (e) {} }
+    if (MOTION === '0' || seen() || (location.hash && location.hash !== '#top') || D.hidden || !hImg || !hTop || !D.body) { R.classList.remove('ci-pre'); window.__ciImgs = null; return; }
+    var t0 = performance.now(), y0 = window.pageYOffset || 0, state = 'load';   /* load → show → out → fin, 어디서든 done(건너뜀·안전장치) */
+    var cur = D.createElement('div'), skipB = D.createElement('button'), held = [], imgs = [], settled = 0;
+    var tLoad = 0, tOut = 0, tBar = 0, tTitle = 0, tFin = 0, tCap = 0, tAnim = 0;
+    var barOn = false, titleOn = false, barFin = false, setFin = false;
+    var EV = [['click', true], ['keydown', true], ['wheel', { capture: true, passive: false }], ['touchmove', { capture: true, passive: false }], ['scroll', false]];
+
+    function release() {   /* 막 · Skip · 잠금 · 입력 감시를 걷는다 */
+      EV.forEach(function (p) { window.removeEventListener(p[0], onInput, p[1] === false ? false : true); });
+      D.removeEventListener('visibilitychange', onVis);
+      if (cur.parentNode) cur.parentNode.removeChild(cur);
+      if (skipB.parentNode) skipB.parentNode.removeChild(skipB);
+      held.forEach(function (el) { el.removeAttribute('inert'); }); held = []; imgs = [];
+    }
+    function onVis() { if (D.hidden) end(); }
+    function onInput(e) {
+      var t = e.type;
+      if (t === 'keydown') {
+        var k = e.key; if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (k === ' ' || k === 'Spacebar') e.preventDefault();
+        else if (k === 'Enter' || k === 'Escape' || k === 'Esc') { /* 그대로 건너뜀 */ }
+        else if (/^(Arrow(Up|Down)|Page(Up|Down)|Home|End)$/.test(k)) e.preventDefault();
+        else return;
+      } else if (t === 'wheel' || t === 'touchmove') { if (e.cancelable) e.preventDefault(); }
+      else if (t === 'scroll' && Math.abs((window.pageYOffset || 0) - y0) < 3) return;   /* 칸 안의 가로 스크롤 등은 무시 */
+      end();
+    }
+    /* 건너뛰기 · 안전장치 · 못 여는 경우 — 곧바로 첫 화면(바와 제목 포함)을 제 모습으로 */
+    function end() {
+      if (state === 'done') return; state = 'done';
+      [tLoad, tOut, tBar, tTitle, tFin, tCap, tAnim].forEach(clearTimeout);
+      R.removeEventListener('animationend', animEnd, true);
+      R.classList.add('ci-skip'); R.classList.remove('ci-pre', 'ci-run', 'ci-go', 'ci-out', 'ci-set', 'ci-bar');
+      heroHold = false; heroInOn = true;
+      release();
+      heroText(); gnbState();
+    }
+    /* 보통의 끝: 막이 다 걷힘. 바·제목·사진 확대는 CSS 가 마저 끝낸다 */
+    function finish() {
+      if (state !== 'out') return; state = 'fin';
+      clearTimeout(tCap);
+      R.classList.remove('ci-run', 'ci-go', 'ci-out');
+      release();
+    }
+    function cap() { if (state === 'done' || state === 'fin') return; if (state === 'out') { fireBar(); fireTitle(); finish(); } else end(); }
+    function fireBar() {
+      if (barOn || state === 'done') return; barOn = true;
+      try { heroText(); gnbState(); } catch (e) {}   /* 바 글자색을 사진에 맞춰 둔 뒤 내려보낸다 */
+      R.classList.add('ci-bar');
+      if (!tAnim) { tAnim = setTimeout(allDone, 1500); R.addEventListener('animationend', animEnd, true); }   /* 안전장치 길로 왔을 때도 클래스를 치운다 */
+    }
+    function fireTitle() { if (titleOn || state === 'done') return; titleOn = true; heroHold = false; heroIn(); }
+    function animEnd(e) {
+      if (e.target === gnb && e.animationName === 'ci-bar-in') { barFin = true; R.classList.remove('ci-bar'); }
+      else if (e.target === hImg && e.animationName === 'ci-hero') { setFin = true; R.classList.remove('ci-set'); }
+      if (barFin && setFin) allDone();
+    }
+    function allDone() {
+      clearTimeout(tAnim); R.removeEventListener('animationend', animEnd, true);
+      R.classList.remove('ci-bar', 'ci-set'); gnbState();   /* 제목 글자색은 제목이 다 나타난 뒤 기존 animationend 가 한 번 더 잰다(움직이는 중에 재면 색이 깜박인다) */
+    }
+    /* 사진이 겹치며 넘어가는 구간이 끝나면: 막이 걷히고 → 바 → 제목 */
+    function out() {
+      if (state !== 'show') return;
+      var el = performance.now() - t0;
+      if (!hImg.complete && el < CAP - 450) { tOut = setTimeout(out, 60); return; }   /* 첫 화면 사진이 아직 안 왔으면 걷히기 전에 잠깐(2.75초까지) 기다린다 */
+      state = 'out';
+      var dur = Math.max(160, Math.min(500, CAP - el - 120));
+      cur.style.setProperty('--ci-out', dur + 'ms');
+      R.classList.add('ci-out', 'ci-set');
+      R.addEventListener('animationend', animEnd, true);
+      tBar = setTimeout(fireBar, dur * .5); tTitle = setTimeout(fireTitle, dur * 1.1); tFin = setTimeout(finish, dur + 40);
+      tAnim = setTimeout(allDone, dur + 2400);
+    }
+    function begin() {
+      if (state !== 'load') return;
+      clearTimeout(tLoad);
+      var list = []; for (var k = 1; k <= N; k++) if (imgs[k]) list.push(imgs[k]);
+      if (list.length < 3) { end(); return; }   /* 사진이 거의 안 왔다 — 인트로 없이 첫 화면 */
+      state = 'show'; stamp();
+      list.forEach(function (im, j) { var s = D.createElement('div'); s.className = 'ca-intro-s'; s.style.setProperty('--i', j); s.appendChild(im); cur.appendChild(s); });
+      void cur.offsetWidth; R.classList.add('ci-go');
+      tOut = setTimeout(out, list.length * STEP);
+    }
+
+    try {
+      tCap = setTimeout(cap, CAP);   /* 맨 먼저 건다 — 아래에서 무엇이 실패해도 3.2초에는 걷힌다 */
+      cur.className = 'ca-intro'; cur.setAttribute('aria-hidden', 'true');
+      skipB.type = 'button'; skipB.className = 'ca-intro-skip'; skipB.setAttribute('lang', 'en'); skipB.textContent = 'Skip';
+      D.body.appendChild(cur); D.body.appendChild(skipB);
+      Array.prototype.forEach.call(D.body.children, function (el) { if (el !== cur && el !== skipB && el.tagName !== 'SCRIPT' && !el.hasAttribute('inert')) { el.setAttribute('inert', ''); held.push(el); } });
+      heroHold = true;   /* 제목은 인트로가 정한 때(fireTitle)에 나타난다 */
+      R.classList.add('ci-run'); R.classList.remove('ci-pre');
+      EV.forEach(function (p) { window.addEventListener(p[0], onInput, p[1]); });
+      D.addEventListener('visibilitychange', onVis);
+      var pre = window.__ciImgs; window.__ciImgs = null;   /* html 머리 스크립트가 미리 불러 둔 사진이 있으면 이어받는다 */
+      for (var i = 1; i <= N; i++) (function (i) {
+        var im = (pre && pre[i - 1]) || new Image(), done = false;
+        function ok() { if (done) return; done = true; if (im.naturalWidth > 0) imgs[i] = im; if (++settled === N) begin(); }
+        function ready() { if (im.decode) { im.decode().then(ok, ok); setTimeout(ok, 250); } else ok(); }   /* 그리기 전에 풀어 두되, 풀리기를 무한정 기다리지 않는다 */
+        im.onload = ready; im.onerror = ok;   /* 못 불러온 장은 건너뜀 */
+        if (!im.src) { im.fetchPriority = 'high'; im.decoding = 'async'; im.alt = ''; im.src = 'assets/intro/i' + (i < 10 ? '0' : '') + i + '.jpg'; }
+        else if (im.complete) { if (im.naturalWidth > 0) ready(); else ok(); }   /* 이미 도착했거나 실패했다 */
+      })(i);
+      tLoad = setTimeout(begin, LOAD_MAX);
+    } catch (e) { end(); }
   })();
   $$('img').forEach(function (im) { if (!im.complete) im.addEventListener('load', function () { tracks.forEach(function (t) { t.measure(); }); }); });
   var rt; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(relayout, 120); });

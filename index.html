@@ -16,6 +16,24 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="my-style.css">
+<script>
+/* 첫 화면 인트로 사전 표시 (2026-10-20 3차 학생 요청) — 첫 방문이고 움직임을 줄이지 않았을 때만 html 에 ci-pre(어두운 막)를 붙여
+   인트로가 시작되기 전에 첫 화면이 번쩍 보이지 않게 하고, 인트로 사진을 미리 부른다. sig.js 가 이어받고, 이어받지 못해도 막은 3.2초 안에 스스로 걷힌다. 화면에 나오는 글자 없음 */
+(function () {
+  try {
+    var r = document.documentElement, seen = false;
+    try { seen = !!sessionStorage.getItem('ca-intro-seen'); } catch (e) {}
+    var m = (getComputedStyle(r).getPropertyValue('--my-motion') || '').replace(/["'\s]/g, '');
+    if (seen || m === '0' || (location.hash && location.hash !== '#top')) return;
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    r.classList.add('ci-pre');
+    setTimeout(function () { r.classList.remove('ci-pre'); }, 3200);
+    /* 인트로 사진 10장을 지금 먼저 부른다(아래 큰 사진들보다 앞서 오게) — sig.js 가 이 사진들을 이어받아 쓴다 */
+    var L = window.__ciImgs = [];
+    for (var i = 1; i <= 10; i++) { var im = new Image(); im.fetchPriority = 'high'; im.decoding = 'async'; im.alt = ''; im.src = 'assets/intro/i' + (i < 10 ? '0' : '') + i + '.jpg'; L.push(im); }
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
 
