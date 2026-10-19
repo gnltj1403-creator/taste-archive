@@ -568,9 +568,12 @@
     if (!mark) return;
     var a = links[curIdx], sp = a && $('span', a);
     if (!a || !a.offsetParent || !sp) { mark.classList.remove('is-on'); return; }
-    var mr = mnav.getBoundingClientRect(), ar = a.getBoundingClientRect(), sr = sp.getBoundingClientRect(), first = !mark.classList.contains('is-set');
+    /* 2026-10-20 학생 피드백: 밑줄이 짧고 칸 왼쪽 끝에 붙어 보여 불편 → 지금 장 글자 폭만큼 길게, 글자 바로 아래에 둔다.
+       offset 값은 호버 때 글자가 6px 움찔해도 흔들리지 않는다 */
+    var first = !mark.classList.contains('is-set'), mx = a.offsetLeft + sp.offsetLeft, my = a.offsetTop + sp.offsetTop + sp.offsetHeight + 2;
     if (first) mark.style.transition = 'none';   /* 처음 자리는 미끄러져 오지 않고 그 자리에 나타난다 */
-    mark.style.transform = 'translate3d(' + (ar.left - mr.left) + 'px,' + (sr.bottom - mr.top + 3) + 'px,0)';
+    mark.style.width = sp.offsetWidth + 'px';
+    mark.style.transform = 'translate3d(' + mx + 'px,' + my + 'px,0)';
     mark.classList.add('is-on');
     if (first) { void mark.offsetWidth; mark.style.removeProperty('transition'); mark.classList.add('is-set'); }
   }
